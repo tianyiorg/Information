@@ -4,6 +4,7 @@ from flask import Flask, session
 from flask_sqlalchemy import SQLAlchemy
 # 可以用来指定Session保存的位置
 from flask_session import Session
+from flask_script import Manager
 
 
 class Config(object):
@@ -39,6 +40,7 @@ redis_store = StrictRedis(host=Config.REDIS_HOST, port=Config.REDIS_PORT)
 CSRFProtect(app)
 # 设置Session保存指定位置
 Session(app)
+manager = Manager(app)
 
 
 @app.route('/')
@@ -48,4 +50,4 @@ def index():
 
 
 if __name__ == '__main__':
-    app.run()
+    manager.run()
