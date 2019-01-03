@@ -16,7 +16,7 @@ manager.add_command('db', MigrateCommand)
 
 @app.route('/')
 def index():
-    session['name'] = 'python'
+    # session['name'] = 'python'
     return 'Index Page'
 
 
