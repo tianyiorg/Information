@@ -1,8 +1,8 @@
+from flask import render_template
+
 from . import index_blue
-from info import redis_store
 
 
 @index_blue.route('/')
 def index():
-    redis_store.set("language", "python")
-    return 'Index Page'
+    return render_template("news/index.html")
