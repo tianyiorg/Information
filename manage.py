@@ -1,9 +1,8 @@
-from flask import session
 from flask_script import Manager
 # 集成数据迁移
 from flask_migrate import Migrate, MigrateCommand
 
-from info import create_app, db
+from info import create_app, db,models
 
 # 通过指定的配置名字创建对应配置的app
 app = create_app("development")
