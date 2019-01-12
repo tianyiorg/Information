@@ -21,6 +21,8 @@ def send_sms_code():
     6.发送短信验证码
     7.告知发送结果
     '''
+
+    '{"mobile":"18908089794,"image_code":"AAAA","image_code_id": "u23jksdhjfkjh2jh4jhdsj"}'
     # 1.获取参数: 手机号、图片验证码内容、图片验证码的编号（随机值）
     params_dict = request.json
     mobile = params_dict.get("mobile")
