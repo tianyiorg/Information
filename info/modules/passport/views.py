@@ -1,13 +1,69 @@
 import random
 import re
+from datetime import datetime
 
-from flask import request, abort, current_app, make_response, json, jsonify
+from flask import request, abort, current_app, make_response, json, jsonify, session
 
-from info import redis_store, constants
+from info import redis_store, constants, db
 from info.libs.yuntongxun.sms import CCP
+from info.models import User
 from info.utils.captcha.response_code import RET
 from . import passport_blue
 from info.utils.captcha.captcha import captcha
+
+
+@passport_blue.route('/register', methods=["POST"])
+def register():
+    '''注册逻辑
+    1.获取参数
+    2.校验参数
+    3.取到服务器保存的真实的短信验证码内容
+    4.校验用户输入的短信验证码内容和真实验证码内容是否一致
+    5.如果一致，初始化User模型，并且赋值
+    6.将user模型添加到数据库
+    7.返回响应
+    '''
+    # 1.获取参数
+    param_dict = json.loads(request.data.decode("utf8"))
+    mobile = param_dict.get("mobile")
+    smscode = param_dict.get("smscode")
+    password = param_dict.get("password")
+    # 2.校验参数
+    if not all([mobile, smscode, password]):
+        return jsonify(errno=RET.PARAMERR, errmsg="参数错误")
+    if not re.match('1[3456789]\\d{9}', mobile):
+        return jsonify(errno=RET.PARAMERR, errmsg="手机号有误")
+    # 3.取到服务器保存的真实的短信验证码内容
+    try:
+        real_sms_code = redis_store.get("SMS" + mobile)
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(errno=RET.DBERR, errmsg="数据查询失败")
+    if not real_sms_code:
+        return jsonify(errno=RET.NODATA, errmsg="验证码已过期")
+    # 4.校验用户输入的短信验证码内容和真实验证码内容是否一致
+    if real_sms_code != smscode:
+        return jsonify(errno=RET.DATAERR, errmsg="验证码输入错误")
+    # 5.如果一致，初始化User模型，并且赋值
+    user = User()
+    user.mobile = mobile
+    user.nick_name = mobile
+    user.last_login=datetime.now()
+    # TODO 对密码做处理
+    # 6.将user模型添加到数据库
+    try:
+        db.session.add(user)
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.error(e)
+        db.session.rollback()
+        return jsonify(errno=RET.DBERR, errmsg="数据保存失败")
+    # 往session中保存数据表示当前已经登陆
+    session['user_id'] = user.id
+    session['mobile'] = user.mobile
+    session['nick_name'] = user.nick_name
+    # 7.返回响应
+    return jsonify(errno=RET.OK, errmsg="注册成功")
 
 
 @passport_blue.route('/sms_code', methods=["POST"])
@@ -22,9 +78,10 @@ def send_sms_code():
     7.告知发送结果
     '''
 
-    '{"mobile":"18908089794,"image_code":"AAAA","image_code_id": "u23jksdhjfkjh2jh4jhdsj"}'
+    # '{"mobile":"18908089794,"image_code":"AAAA","image_code_id": "u23jksdhjfkjh2jh4jhdsj"}'
     # 1.获取参数: 手机号、图片验证码内容、图片验证码的编号（随机值）
-    params_dict = request.json
+
+    params_dict = json.loads(request.data.decode("utf8"))
     mobile = params_dict.get("mobile")
     image_code = params_dict.get("image_code")
     image_code_id = params_dict.get("image_code_id")
@@ -48,8 +105,10 @@ def send_sms_code():
     # 随机数字，保证数字长度为6位，不够在前面补0
     sms_code_str = "%06d" % random.randint(0, 999999)
     current_app.logger.debug("短信验证码内容是:{}".format(sms_code_str))
+    return jsonify(errno=RET.OK, errmsg="发送短信成功")
     # 6.发送短信验证码
     result = CCP().send_template_sms(mobile, [send_sms_code, constants.SMS_CODE_REDIS_EXPIRES / 5], 1)
+    print(result)
     if result != 0:
         # 代表发送失败
         return jsonify(errno=RET.THIRDERR, errmsg="发送短信失败")
